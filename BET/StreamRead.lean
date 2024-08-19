@@ -7,11 +7,15 @@ def bufsize : USize := 20 * 1024
 /- defines a 'block' size to read data in, in this case reading 20kb (1kb = 1024b, 1024b * 20) as one 'block' -/
 
 open Lean in
+
+
+
+
 def String.toFloat (s : String) : Except String Float :=
   match Json.Parser.num s.mkIterator with
   | Parsec.ParseResult.success _ res =>
     Except.ok <| Float.ofInt res.mantissa * 10 ^  (-1 * Float.ofNat res.exponent)
-  | Parsec.ParseResult.error it err  => Except.error s!""
+  | Parsec.ParseResult.error it err  => Except.error s!"{it} {err}"
 
 def stringToFloatExceptHandler (input: Except String Float) : Float :=
   match input with
@@ -80,7 +84,7 @@ def process (exitCode: UInt32) (args : List String) (outputArray : Array $ List 
   | [] => pure exitCode-- branch 1, nothing left to process, returns the exitCode
   | "-" :: args =>      -- branch 2, standard input given, instead of a file
     let stdin ← IO.getStdin
-    let outputString ← dump stdin outputArray -- takes one 'block' from standard input and writes it to standard output
+    let _ ← dump stdin outputArray -- takes one 'block' from standard input and writes it to standard output
     process exitCode args outputArray/- recursive process call, args is now one 'block' smaller → proves termination
                              so partial def is unnecessary -/
 
@@ -90,12 +94,11 @@ def process (exitCode: UInt32) (args : List String) (outputArray : Array $ List 
     | none => -- file can't be opened, set exit code to 1, file is skipped (i.e. not processed by dump)
       process 1 args outputArray
     | some stream => -- file can be opened, dump is called on a 'block', 'block' is processed, onto the next.
-      let outputString ← dump stream outputArray
+      let _ ← dump stream outputArray
       process exitCode args outputArray
-
 
 def main (args : List String) : IO UInt32 :=
   match args with
-  | ["--help"] => process 0 ["helpfile.txt"] #[]
+  | ["help"] => process 0 ["helpfile.txt"] #[]
   | [] => process 0 ["-"] #[] -- no arguments provided, read from standard input
   | _ => process 0 args #[] -- arguments (filenames) provided, read from them in order

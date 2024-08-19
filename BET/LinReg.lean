@@ -2,12 +2,6 @@ import Mathlib.Data.Real.Basic
 import Mathlib.Tactic.Linarith.Frontend
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
-def test_func (data : List Float) : String :=
-  let choice := match data with
-    | [] => "Yes"
-    | x :: xs => "No"
-  choice
-
 structure LRM (α : Type) where
 -- Must pass type with LRM, allows for polymorph. struct. def. and 'deriving Repr'
   slope : α
@@ -17,14 +11,14 @@ structure LRM (α : Type) where
   deriving Repr
 
 instance : ToString (LRM (Float)) :=
-⟨fun L => "{ slope: " ++ (Float.toString <| LRM.slope L) ++
-          ", intercept: " ++ (Float.toString <| LRM.intercept L) ++
-          ", R-Value: " ++ (Float.toString <|LRM.rVal L) ++
-          ", Mean Square Error: " ++ (Float.toString <|LRM.MSE L) ++ " }"⟩
+⟨fun L => "{\n slope: " ++ (Float.toString <| LRM.slope L) ++
+          ",\n intercept: " ++ (Float.toString <| LRM.intercept L) ++
+          ",\n R-Value: " ++ (Float.toString <|LRM.rVal L) ++
+          ",\n Mean Square Error: " ++ (Float.toString <|LRM.MSE L) ++ " \n} \n"⟩
 
 def exceptHandler (xData : Except String (LRM (Float))) : String :=
     match xData with
-    | Except.ok (α) => s!"{xData}"
+    | Except.ok (α) => s!"{α}"
     | Except.error (ε : String) => ε
 
 def FloatList.sumHelper [Add α] (soFar : α) : List α → α
@@ -45,8 +39,7 @@ def FloatList.squareTogether [Mul α] (xs : List α) (ys : List α) : List α :=
     |[],[] => []
     |(headX) :: tailX, (headY) :: tailY =>
       ((headX * headY) :: squareTogether tailX tailY)
-    |(x) :: xss, [] => []
-    |[], (y) :: yss => []
+    |_ , _ => []
 
 def FloatList.squareMeanDiff [Sub α] [Mul α] (xs: List α) (meanVal : α) : List α :=
   match xs with
@@ -58,8 +51,7 @@ def FloatList.crossProdMeanDiff [Sub α] [Mul α] (xs : List α) (ys : List α) 
     |[],[] => []
     |(headX) :: tailX, (headY) :: tailY =>
       (((headX - xMean) * (headY - yMean)) :: crossProdMeanDiff tailX tailY xMean yMean)
-    |(x) :: xss, [] => []
-    |[], (y) :: yss => []
+    |_ , _ => []
 
 def mseCalcHelper [Sub α] [Mul α] [Zero α] (yData : List α) (yDataPred : List α) (yDiffs : List α) : List α :=
   match yData, yDataPred with
@@ -69,8 +61,7 @@ def mseCalcHelper [Sub α] [Mul α] [Zero α] (yData : List α) (yDataPred : Lis
     let diffSquare := (diff * diff)
     let yDiffs := yDiffs ++ [diffSquare]
     mseCalcHelper (tailys) (tailps) (yDiffs)
-  | [], (head :: tail) => []
-  | (head :: tail), [] =>[]
+  |_ , _ => []
 
 def predValsCalc [Mul α] [Add α] (xData : List α) (slope : α) (intercept : α) (yDataPred : List α) : List α :=
   match xData with
@@ -82,7 +73,7 @@ def predValsCalc [Mul α] [Add α] (xData : List α) (slope : α) (intercept : �
 def polyListLength [Add α] [Zero α] [One α] (lengthSum : α) (xs : List β) : α :=
   match xs with
   | [] => lengthSum
-  | x :: xs => polyListLength (lengthSum + One.one) (xs)
+  | _ :: xs => polyListLength (lengthSum + One.one) (xs)
 
 def mseCalcVert [Mul α] [Div α] [Add α] [Zero α] [Sub α] [One α] (xData : List α) (yData : List α) (slope : α) (intercept : α): α := Id.run do
   let predVals := predValsCalc (xData) (slope) (intercept) ([])
@@ -111,8 +102,8 @@ def linReg [Add α] [Zero α] [Mul α] [One α] [Sub α] [Div α] (xData : List 
 def FloatList.checkUnique [BEq α] [Inhabited α] (xData : List α) (initVal : α) : Bool :=
   match xData with
   | [] => false
-  | [α] => false
-  | (head) :: (tail) =>
+  | [_] => false
+  | (_) :: (tail) =>
       if initVal == tail[0]! then
         checkUnique (tail) (initVal)
       else
@@ -129,9 +120,9 @@ def LRprocess [Add α] [Zero α] [Mul α] [One α] [Sub α] [Div α] [BEq α] [I
       Except.error "Not enough data for meaningful regression (3+ points required)"
   else
     if ((checkYUnique == false) && (checkXUnique == false)) && (xData.length == yData.length) then
-      Except.error "X and Y data returned as non-unique (all points in data are equivalent) "
+      Except.error "\n X and Y data returned as non-unique (all points in data are equivalent) \n"
     else
-      Except.error "X and Y have mismatched lengths, one array is longer than the other"
+      Except.error "\n X and Y have mismatched lengths, one array is longer than the other \n"
 
 #eval
   let xData := [1.47,1.5,1.52,1.55,1.57,1.6,1.63,1.65,1.68,1.7,1.73,1.75,1.78,1.8,1.83]
@@ -201,7 +192,6 @@ theorem PlusOneIsOneToOne : functionIsOneToOne (plusOne : Real → Real) := by
   dsimp [plusOne] at h
   linarith [h]
 
-#eval plusOne (1.5)
 
 
 structure ChemProps (α : Type) where
