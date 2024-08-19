@@ -35,9 +35,10 @@ partial def dump (stream : IO.FS.Stream) (outputArray : Array $ List $ Float) : 
   else
     --let stdout ← IO.getStdout
     -- stdout now describes the output of IO.getStdout
-    let parse_result := parse <| String.fromUTF8Unchecked <| buf
---    let parse_result := parse <| String.fromUTF8 <| buf
-    -- Has type Except String $ Array $ Array $ String
+    let parse_result :=
+    match String.fromUTF8? buf with
+    | some str => parse str
+    | none => Except.error "Failed to decode UTF-8 string"
     let parse_result := CSVParseExceptHandler (parse_result)
     -- Has type Array $ Array $ String
     let xData := stringList.toFloats (parse_result[0]!.toList) []
