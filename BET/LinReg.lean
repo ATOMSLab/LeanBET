@@ -179,27 +179,3 @@ partial def selSort (xData : List Float) : List Float :=
       else []
   else []
   --termination_by selSort xData => xData.length
-
-def plusOne [Add α] [One α] (inputVal : α) : α :=
-  inputVal + One.one
-
-def functionIsOneToOne (f : X → Y) : Prop :=
-  ∀ {x1 x2 : X}, f x1 = f x2 → x1 = x2
-
-theorem PlusOneIsOneToOne : functionIsOneToOne (plusOne : Real → Real) := by
-  dsimp [functionIsOneToOne]
-  intro x1 x2 h
-  dsimp [plusOne] at h
-  linarith [h]
-
-
-
-structure ChemProps (α : Type) where
-StoichProp : String
-IonicValue : α
-deriving Repr
-
-#eval
-  let Boron : ChemProps Float := {StoichProp := "String", IonicValue := 7.0}
-  let result := plusOne (Boron.IonicValue)
-  Boron
