@@ -1,12 +1,1 @@
 /.lake
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-.pytest_cache/
-.coverage
-*.log
-key.py
-DimensionalAnalysis.lean
-DimensionalAnalysis.lean
