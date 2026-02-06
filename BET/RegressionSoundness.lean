@@ -1,16 +1,3 @@
-/-
-RegressionSoundness.lean
-
-Step 1 + 2:
-(1) Write Prop-level specifications for the intermediate quantities used by
-    `linearRegression`.
-(2) Prove “gate extraction” lemmas: if `linearRegression data = some (m,b,r2)`,
-    then the length guard passed, the variance guard passed, and `(m,b,r2)` are
-    exactly the closed-form values computed by the code.
-
-This is the polymorphic (BETLike-based) soundness layer.
--/
-
 import Mathlib
 import BET.Instance
 import BET.Function
