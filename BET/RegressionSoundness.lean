@@ -727,8 +727,6 @@ lemma listSumR_map_const {β : Type} (c : ℝ) (xs : List β) :
       simp [listSumR_cons, ih, List.map, Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_assoc, add_comm, add_left_comm]
       aesop
 
-
-
 lemma ssResSpec_eq_listSumR_residuals_sq
   (data : List (ℝ × ℝ)) (m b : ℝ) :
   ssResSpec data m b
@@ -737,8 +735,6 @@ lemma ssResSpec_eq_listSumR_residuals_sq
   unfold ssResSpec residuals ysSpec yHatSpec xsSpec
   simp [listSumR, pow_two, List.map_map, List.zip_map_right, List.zip_map_left, Function.comp]
   aesop
-
-
 
 
 lemma listSumR_yHatSpec (data : List (ℝ × ℝ)) (m b : ℝ) :
@@ -798,10 +794,6 @@ lemma listSumR_yHatSpec (data : List (ℝ × ℝ)) (m b : ℝ) :
   _ = listSumR (List.map (fun x ↦ m * x) (List.map Prod.fst data)) + listSumR (List.map (fun x ↦ b) (List.map Prod.fst data)) := by exact hadd
   _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by rw [hm, hb, hlen]
   _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by rfl
-
-
-
-
 
 /-- Sum of residuals is zero when using the optimal intercept `bOf data m`. -/
 lemma listSumR_residuals_bOf_eq_zero
@@ -1289,26 +1281,74 @@ theorem linearRegression_certifies_minimizer
   rcases hmb with ⟨hm, hb⟩
   simpa [hm, hb]
 
+lemma listSumR_map_nonneg {β : Type} (xs : List β) (f : β → ℝ)
+    (hf : ∀ x, 0 ≤ f x) :
+    0 ≤ listSumR (xs.map f) := by
+  induction xs with
+  | nil =>
+      simp [listSumR]
+  | cons x xs ih =>
+      simp [listSumR_cons, hf x, ih, add_nonneg]
+
+lemma vrSpecR_nonneg (data : List (ℝ × ℝ)) :
+    0 ≤ vrSpecR data := by
+  unfold vrSpecR
+  refine listSumR_map_nonneg
+    (xs := data)
+    (f := fun xy => (xy.1 - xBarSpecR data) ^ (2 : Nat)) ?_
+  intro xy
+  simpa [pow_two] using sq_nonneg (xy.1 - xBarSpecR data)
+
+@[simp] lemma isZero_zero_real :
+    BET.isZero (α := ℝ) (0 : ℝ) = true := by
+  simp [BET.isZero, HasIsZero.isZero]
+
+lemma linearRegression_some_vr_pos
+  (data : List (ℝ × ℝ)) (m b r2 : ℝ)
+  (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
+  0 < vrSpecR data := by
+  have hnonneg : 0 ≤ vrSpecR data := vrSpecR_nonneg data
+  have hvr_bool : BET.isZero (vrSpecR data) = false :=
+    linearRegression_some_vr_notZero (data := data) h
+
+  have hvr_ne : vrSpecR data ≠ 0 := by
+    intro hzero
+    have hiz : BET.isZero (vrSpecR data) = true := by
+      simpa [hzero] using (isZero_zero_real)
+    rw [hiz] at hvr_bool
+    cases hvr_bool
+
+  have h0ne : (0 : ℝ) ≠ vrSpecR data := by
+    intro hzero
+    exact hvr_ne hzero.symm
+
+  exact lt_of_le_of_ne hnonneg h0ne
+
 
 --# linearRegression_returns_least_minimizer
 theorem linearRegression_returns_least_minimizer
   (data : List (ℝ × ℝ)) (m b r2 : ℝ)
-  (h : linearRegression (α := ℝ) data = some (m, b, r2))
-  (hvr : 0 < vrSpecR data) :
+  (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
   ∀ m' b' : ℝ,
     ssResSpec data m b ≤ ssResSpec data m' b' := by
   rcases linearRegression_some_fields
       (α := ℝ) (data := data) (m := m) (b := b) (r2 := r2) h with
     ⟨_, hm, hb, _⟩
-  have hlen2 : 2 ≤ data.length := by
-    exact linearRegression_some_length (α := ℝ) (data := data) h
+
+  have hlen2 : 2 ≤ data.length :=
+    linearRegression_some_length (α := ℝ) (data := data) h
+
   have hlen : data.length ≠ 0 := by
-    omega
+    have hpos : 0 < data.length := lt_of_lt_of_le (by decide : 0 < 2) hlen2
+    exact Nat.ne_of_gt hpos
+
+  have hvr : 0 < vrSpecR data :=
+    linearRegression_some_vr_pos (data := data) (m := m) (b := b) (r2 := r2) h
+
   intro m' b'
   simpa [hm, hb] using
     (ssResSpec_minimized_at_slope_and_intercept
       (data := data) (m := m') (b := b') hlen hvr)
-
 
 
 --## BET Parameter Soundness theorem
