@@ -1290,6 +1290,25 @@ theorem linearRegression_certifies_minimizer
   simpa [hm, hb]
 
 
+--# linearRegression_returns_least_minimizer
+theorem linearRegression_returns_least_minimizer
+  (data : List (ℝ × ℝ)) (m b r2 : ℝ)
+  (h : linearRegression (α := ℝ) data = some (m, b, r2))
+  (hvr : 0 < vrSpecR data) :
+  ∀ m' b' : ℝ,
+    ssResSpec data m b ≤ ssResSpec data m' b' := by
+  rcases linearRegression_some_fields
+      (α := ℝ) (data := data) (m := m) (b := b) (r2 := r2) h with
+    ⟨_, hm, hb, _⟩
+  have hlen2 : 2 ≤ data.length := by
+    exact linearRegression_some_length (α := ℝ) (data := data) h
+  have hlen : data.length ≠ 0 := by
+    omega
+  intro m' b'
+  simpa [hm, hb] using
+    (ssResSpec_minimized_at_slope_and_intercept
+      (data := data) (m := m') (b := b') hlen hvr)
+
 
 
 --## BET Parameter Soundness theorem
