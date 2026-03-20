@@ -154,28 +154,32 @@ theorem monotone_complete {α : Type} [BETLike α] (xs : List α) :
           -- Bool recursion uses `if x ≤ y then ... else ...`
           simp [isMonotoneNondecreasingExact, hxy, ih']
 
-
+/-
 theorem monotone_iff {α : Type} [BETLike α] (xs : List α) :
   isMonotoneNondecreasingExact (α := α) xs = true ↔ MonotoneNondecreasing (α := α) xs := by
   constructor
   · intro h; exact monotone_sound (α := α) xs h
   · intro h; exact monotone_complete (α := α) xs h
+-/
 
 
+/-- Minimal physical admissibility for a BET fit (as Prop). 
 
-/-- Minimal physical admissibility for a BET fit (as Prop). -/
 def PhysAdmissible {α} [BETLike α] (fit : BETFit α) : Prop :=
   BETLike.zero (α := α) < fit.c ∧ BETLike.zero (α := α) < fit.nm
+-/
 
-/-- Physical admissibility, matching the core gates. -/
+/-- Physical admissibility, matching the core gates.
 def PhysAdmissibleLE {α : Type} [BETLike α] (fit : BETFit α) : Prop :=
   ¬ (fit.c ≤ BETLike.zero (α := α)) ∧ ¬ (fit.nm ≤ BETLike.zero (α := α))
+-/
 
-/-- Physical admissibility in “math form”: what we say in the manuscript. -/
+/-- Physical admissibility in “math form”: what we say in the manuscript. 
 def PhysAdmissibleLT {α : Type} [BETLike α] (fit : BETFit α) : Prop :=
   BETLike.zero (α := α) < fit.c ∧ BETLike.zero (α := α) < fit.nm
+-/
 
-
+/-
 theorem phys_complete {α : Type} [BETLike α] (fit : BETFit α) :
   PhysAdmissibleLE (α := α) fit →
   (¬ (fit.c ≤ BETLike.zero (α := α)) ∧ ¬ (fit.nm ≤ BETLike.zero (α := α))) := by
@@ -219,10 +223,10 @@ theorem passesBETSI_core_checks_sound
   have hphys := passesBETSI_core_physical_sound (invert := invert) (iso := iso)
     (fit := fit) (window := window) (cfg := cfg) (r := r) h
   exact ⟨hmono.1, hmono.2, hphys⟩
+-/
 
 
-
-/-- If the core returns `some r`, then the result record carries the input `fit` and `window`. -/
+/-- If the core returns `some r`, then the result record carries the input `fit` and `window`. 
 theorem passesBETSI_core_result_fields
   {α : Type} [BETLike α]
   (invert : Isotherm α → α → Option α)
@@ -265,7 +269,7 @@ theorem passesBETSI_core_checks_sound_result
   --    (Note: use hfields.2.symm to rewrite r.window -> window)
   simpa [hfields.1, hfields.2] using h'
 
-
+-/
 
 
 
