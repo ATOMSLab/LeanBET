@@ -96,7 +96,6 @@ Each executable check (e.g., monotonicity scanning, admissibility filtering) is 
 ## Limitations and Notes
 
 - Proofs are over `ℝ`; floating-point execution carries the usual IEEE 754 caveats. For the adsorption datasets here, experimental noise far exceeds double-precision round-off.
-- LeanBET uses linear interpolation where BETSI uses PCHIP (Piecewise Cubic Hermite Interpolating Polynomial) interpolation. This does not violate the formal specifications but can affect window selection in borderline cases (as seen with UiO-66).
 - The `BETLike ℝ` instance is `noncomputable`, as expected for real-number arithmetic in Lean/Mathlib.
 - Writing polymorphic functions from the start adds typeclass complexity. We recommend developing `Float` and `ℝ` versions separately first, then merging — see the manuscript for details on our development process.
 
