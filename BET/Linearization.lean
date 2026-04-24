@@ -83,28 +83,15 @@ makes the linearized quantity a line in `p`-/
 noncomputable def betNonlinear (c nm p : ℝ) : ℝ :=
   (c * nm * p) / ((1 - p) * (1 + (c - 1) * p))
 
-noncomputable def betLinearY (n p : ℝ) : ℝ :=
-  p / (n * (1 - p))
-
-
-/-- `linearizeBET` returns the `betLinearY` ordinate when it succeeds. -/
-theorem linearizeBET_some_eq_betLinearY
-  (pt : Point ℝ)
-  (hp : pt.p < (1 : ℝ))
-  (hden : BET.isZero (pt.n * ((1 : ℝ) - pt.p)) = false) :
-  linearizeBET (α := ℝ) pt
-    = some (pt.p, betLinearY pt.n pt.p) := by
-  simpa [betLinearY] using linearizeBET_some_eq pt hp hden
-
 theorem bet_linearization_algebra
   (c nm p : ℝ)
   (hc : c ≠ 0) (hnm : nm ≠ 0)
   (hp0 : p ≠ 0) (hp1 : p ≠ 1) :
-  betLinearY (betNonlinear c nm p) p
+  p / (betNonlinear c nm p * (1 - p))
     = (1 / (c * nm)) + ((c - 1) / (c * nm)) * p := by
   have hCp : c * nm ≠ 0 := mul_ne_zero hc hnm
   have h1mp : (1 - p) ≠ 0 := sub_ne_zero.mpr (Ne.symm hp1)
-  unfold betLinearY betNonlinear
+  unfold betNonlinear
   field_simp [hCp, h1mp, hp0]
 
 /-- Away from `P = 0`, the adsorption constant simplifies to the system ratio `C_1 / C_L`. -/
@@ -156,14 +143,14 @@ theorem betNonlinear_ratio_eq_nm_mul_brunauer_28
   betNonlinear (S.C_1 / S.C_L) nm (P / S.P₀) = nm * brunauer_28 S P := by
   rw [← adsorption_constant_eq_ratio S hP, betNonlinear_eq_nm_mul_brunauer_28]
 
-/-- Linearizing the BET model expressed via `brunauer_28` yields the same affine expression
-as the standard nonlinear BET formula. -/
-theorem betLinearY_nm_mul_brunauer_28
+/-- Linearizing the Brunauer 28 model yields the affine BET expression
+with the adsorption constant written as `adsorption_constant S P`. -/
+theorem brunauer_28_linearization_adsorption_constant
   (S : BET.system) (nm P : ℝ)
   (hnm : nm ≠ 0)
   (hP : P ≠ 0)
   (hPP₀ : P ≠ S.P₀) :
-  betLinearY (nm * brunauer_28 S P) (P / S.P₀)
+  (P / S.P₀) / ((nm * brunauer_28 S P) * (1 - P / S.P₀))
     = (1 / (BET.adsorption_constant S P * nm))
       + ((BET.adsorption_constant S P - 1) / (BET.adsorption_constant S P * nm)) * (P / S.P₀) := by
   have hC : BET.adsorption_constant S P ≠ 0 := by
@@ -181,15 +168,27 @@ theorem betLinearY_nm_mul_brunauer_28
 
 /-- The same linearization statement with the adsorption constant written explicitly
 as the system ratio `C_1 / C_L`. -/
-theorem betLinearY_nm_mul_brunauer_28_ratio
+theorem brunauer_28_linearization_ratio
   (S : BET.system) (nm P : ℝ)
   (hnm : nm ≠ 0)
   (hP : P ≠ 0)
   (hPP₀ : P ≠ S.P₀) :
-  betLinearY (nm * brunauer_28 S P) (P / S.P₀)
+  (P / S.P₀) / ((nm * brunauer_28 S P) * (1 - P / S.P₀))
     = (1 / ((S.C_1 / S.C_L) * nm))
       + (((S.C_1 / S.C_L) - 1) / ((S.C_1 / S.C_L) * nm)) * (P / S.P₀) := by
-  rw [betLinearY_nm_mul_brunauer_28 S nm P hnm hP hPP₀, adsorption_constant_eq_ratio S hP]
+  rw [brunauer_28_linearization_adsorption_constant S nm P hnm hP hPP₀,
+    adsorption_constant_eq_ratio S hP]
+
+/-- The Brunauer 28 isotherm becomes affine after BET linearization. -/
+theorem brunauer_28_linearization
+  (S : BET.system) (nm P : ℝ)
+  (hnm : 0 < nm)
+  (hP : 0 < P)
+  (hPP₀ : P < S.P₀) :
+  (P / S.P₀) / ((nm * brunauer_28 S P) * (1 - P / S.P₀))
+    = (1 / ((S.C_1 / S.C_L) * nm))
+      + (((S.C_1 / S.C_L) - 1) / ((S.C_1 / S.C_L) * nm)) * (P / S.P₀) := by
+  exact brunauer_28_linearization_ratio S nm P hnm.ne' hP.ne' (ne_of_lt hPP₀)
 
 /-- If we package the BET nonlinear model into a `Point`, `linearizeBET` returns the expected
 linearized ordinate. The explicit nonzero-denominator guard is exactly the runtime condition
@@ -199,8 +198,8 @@ theorem linearizeBET_nm_mul_brunauer_28_some
   (hp : P / S.P₀ < (1 : ℝ))
   (hden : BET.isZero ((nm * brunauer_28 S P) * ((1 : ℝ) - P / S.P₀)) = false) :
   linearizeBET (α := ℝ) { p := P / S.P₀, n := nm * brunauer_28 S P }
-    = some (P / S.P₀, betLinearY (nm * brunauer_28 S P) (P / S.P₀)) := by
-  simpa [betLinearY] using
+    = some (P / S.P₀, (P / S.P₀) / ((nm * brunauer_28 S P) * (1 - P / S.P₀))) := by
+  simpa using
     linearizeBET_some_eq
       ({ p := P / S.P₀, n := nm * brunauer_28 S P } : Point ℝ) hp hden
 
@@ -219,7 +218,7 @@ theorem linearizeBET_nm_mul_brunauer_28_line
             / (BET.adsorption_constant S P * nm))
             * (P / S.P₀)) := by
   rw [linearizeBET_nm_mul_brunauer_28_some S nm P hp hden,
-    betLinearY_nm_mul_brunauer_28 S nm P hnm hP hPP₀]
+    brunauer_28_linearization_adsorption_constant S nm P hnm hP hPP₀]
 
 
 end BET
