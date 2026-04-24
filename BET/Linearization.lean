@@ -77,22 +77,25 @@ theorem linearizeBET_eq_some_iff
     aesop
 
 
-/-Algebraic linearization: substituting the BET nonlinear model for `n`
-makes the linearized quantity a line in `p`-/
+/- Algebraic linearization: the normalized Brunauer 28 form becomes affine
+under the BET transform. -/
 
-noncomputable def betNonlinear (c nm p : ℝ) : ℝ :=
-  (c * nm * p) / ((1 - p) * (1 + (c - 1) * p))
-
-theorem bet_linearization_algebra
+theorem linearization_of_brunauer_fraction
   (c nm p : ℝ)
   (hc : c ≠ 0) (hnm : nm ≠ 0)
   (hp0 : p ≠ 0) (hp1 : p ≠ 1) :
-  p / (betNonlinear c nm p * (1 - p))
+  p / ((((c * nm * p) / ((1 - p) * (1 + (c - 1) * p)))) * (1 - p))
     = (1 / (c * nm)) + ((c - 1) / (c * nm)) * p := by
   have hCp : c * nm ≠ 0 := mul_ne_zero hc hnm
   have h1mp : (1 - p) ≠ 0 := sub_ne_zero.mpr (Ne.symm hp1)
-  unfold betNonlinear
-  field_simp [hCp, h1mp, hp0]
+  calc
+    p / ((((c * nm * p) / ((1 - p) * (1 + (c - 1) * p)))) * (1 - p))
+      = p / ((c * nm * p) / (1 + (c - 1) * p)) := by
+          field_simp [h1mp]
+    _ = (1 + (c - 1) * p) / (c * nm) := by
+          field_simp [hCp, hp0]
+    _ = (1 / (c * nm)) + ((c - 1) / (c * nm)) * p := by
+          field_simp [hCp]
 
 /-- Away from `P = 0`, the adsorption constant simplifies to the system ratio `C_1 / C_L`. -/
 theorem adsorption_constant_eq_ratio
@@ -101,47 +104,20 @@ theorem adsorption_constant_eq_ratio
   change (S.C_1 * P) / (S.C_L * P) = S.C_1 / S.C_L
   exact mul_div_mul_right S.C_1 S.C_L hP
 
-/-- `brunauer_28` is the BET nonlinear model at normalized pressure `P / P₀`, with `nm = 1`. -/
-theorem brunauer_28_eq_betNonlinear_normalized
-  (S : BET.system) (P : ℝ) :
-  brunauer_28 S P = betNonlinear (BET.adsorption_constant S P) 1 (P / S.P₀) := by
-  change BET.adsorption_constant S P * P
-      / ((S.P₀ - P) * (1 + (BET.adsorption_constant S P - 1) * (P / S.P₀))) =
-    betNonlinear (BET.adsorption_constant S P) 1 (P / S.P₀)
-  rw [betNonlinear]
-  field_simp [_root_.ne_of_gt S.hP₀]
-
-/-- The BET nonlinear model with monolayer amount `nm`
-specializes to `nm * brunauer_28` under normalized pressure. -/
-theorem betNonlinear_eq_nm_mul_brunauer_28
+/-- Scaling `brunauer_28` by the monolayer amount `nm`
+puts it into the normalized-pressure form used in BET linearization. -/
+theorem nm_mul_brunauer_28_eq_normalized_fraction
   (S : BET.system) (nm P : ℝ) :
-  betNonlinear (BET.adsorption_constant S P) nm (P / S.P₀) = nm * brunauer_28 S P := by
-  rw [brunauer_28_eq_betNonlinear_normalized]
-  unfold betNonlinear
-  ring
-
-/-- A convenient formulation of the bridge from `brunauer_28` to `betNonlinear`
-using explicit equalities for the nonlinear parameters. -/
-theorem betNonlinear_eq_nm_mul_brunauer_28_of_eq
-  {S : BET.system} {P c nm p : ℝ}
-  (hc : c = BET.adsorption_constant S P)
-  (hp : p = P / S.P₀) :
-  betNonlinear c nm p = nm * brunauer_28 S P := by
-  subst c p
-  exact betNonlinear_eq_nm_mul_brunauer_28 S nm P
-
-/-- When `P ≠ 0`, the nonlinear BET parameter `c` can be read directly from the system data. -/
-theorem brunauer_28_eq_betNonlinear_ratio
-  (S : BET.system) {P : ℝ} (hP : P ≠ 0) :
-  brunauer_28 S P = betNonlinear (S.C_1 / S.C_L) 1 (P / S.P₀) := by
-  rw [brunauer_28_eq_betNonlinear_normalized, adsorption_constant_eq_ratio S hP]
-
-/-- Scaled `brunauer_28` agrees with the standard BET nonlinear model
-written using the system ratio `C_1 / C_L`. -/
-theorem betNonlinear_ratio_eq_nm_mul_brunauer_28
-  (S : BET.system) (nm : ℝ) {P : ℝ} (hP : P ≠ 0) :
-  betNonlinear (S.C_1 / S.C_L) nm (P / S.P₀) = nm * brunauer_28 S P := by
-  rw [← adsorption_constant_eq_ratio S hP, betNonlinear_eq_nm_mul_brunauer_28]
+  nm * brunauer_28 S P =
+    ((BET.adsorption_constant S P) * nm * (P / S.P₀)) /
+      ((1 - P / S.P₀) * (1 + (BET.adsorption_constant S P - 1) * (P / S.P₀))) := by
+  have hP₀ : S.P₀ ≠ 0 := _root_.ne_of_gt S.hP₀
+  change nm
+      * (BET.adsorption_constant S P * P
+          / ((S.P₀ - P) * (1 + (BET.adsorption_constant S P - 1) * (P / S.P₀)))) =
+    ((BET.adsorption_constant S P) * nm * (P / S.P₀)) /
+      ((1 - P / S.P₀) * (1 + (BET.adsorption_constant S P - 1) * (P / S.P₀)))
+  field_simp [hP₀]
 
 /-- Linearizing the Brunauer 28 model yields the affine BET expression
 with the adsorption constant written as `adsorption_constant S P`. -/
@@ -163,8 +139,9 @@ theorem brunauer_28_linearization_adsorption_constant
     have hEq : P = S.P₀ := by
       simpa [one_mul] using (div_eq_iff (_root_.ne_of_gt S.hP₀)).mp hp1
     exact hPP₀ hEq
-  rw [← betNonlinear_eq_nm_mul_brunauer_28]
-  exact bet_linearization_algebra (BET.adsorption_constant S P) nm (P / S.P₀) hC hnm hp0 hp1
+  rw [nm_mul_brunauer_28_eq_normalized_fraction]
+  exact linearization_of_brunauer_fraction
+    (BET.adsorption_constant S P) nm (P / S.P₀) hC hnm hp0 hp1
 
 /-- The same linearization statement with the adsorption constant written explicitly
 as the system ratio `C_1 / C_L`. -/
@@ -179,7 +156,7 @@ theorem brunauer_28_linearization_ratio
   rw [brunauer_28_linearization_adsorption_constant S nm P hnm hP hPP₀,
     adsorption_constant_eq_ratio S hP]
 
-/-- The Brunauer 28 isotherm becomes affine after BET linearization. -/
+/-- Manuscript-friendly form: the Brunauer 28 isotherm becomes affine after BET linearization. -/
 theorem brunauer_28_linearization
   (S : BET.system) (nm P : ℝ)
   (hnm : 0 < nm)
@@ -190,7 +167,7 @@ theorem brunauer_28_linearization
       + (((S.C_1 / S.C_L) - 1) / ((S.C_1 / S.C_L) * nm)) * (P / S.P₀) := by
   exact brunauer_28_linearization_ratio S nm P hnm.ne' hP.ne' (ne_of_lt hPP₀)
 
-/-- If we package the BET nonlinear model into a `Point`, `linearizeBET` returns the expected
+/-- If we package the Brunauer 28 model into a `Point`, `linearizeBET` returns the expected
 linearized ordinate. The explicit nonzero-denominator guard is exactly the runtime condition
 checked by `linearizeBET`. -/
 theorem linearizeBET_nm_mul_brunauer_28_some
