@@ -166,27 +166,11 @@ theorem linearRegression_some_fields
 
 
 
-
 --## Linear regression minimizer
-
-/-!
-Step 1 + 2 for RegressionSoundness.lean
-
-Step 1: define the least-squares objective (SSE).
-Step 2: prove the “normal-equation style” identities that characterize
-        the returned slope/intercept at the spec level.
--/
 
 /- ============================================================
    Step 1: SSE objective (spec)
    ============================================================ -/
-
-/--
-SSE(m,b) = Σ (yᵢ - (m xᵢ + b))².
-
-In our development, this is exactly `ssResSpec`, since `ssResSpec`
-is defined as a sum of squared residuals using `yHatSpec`.
--/
 
 noncomputable def sseSpec (data : List (ℝ  × ℝ)) (m b : ℝ) : ℝ :=
   ssResSpec  data m b
@@ -198,8 +182,6 @@ noncomputable def sseSpec (data : List (ℝ  × ℝ)) (m b : ℝ) : ℝ :=
     (data : List (ℝ × ℝ)) :
     interceptSpec data
       = yBarSpecR data - slopeSpec data * xBarSpecR data := by simp [interceptSpec]
-
-
 
 --## Linear regression minimizer lemmas
 /-- Sum of squared errors: SSE(m,b) = Σ (y - (m x + b))^2.
@@ -353,16 +335,6 @@ lemma residuals_eq_map
       | mk x y =>
           simp only [List.map_cons]
           exact (by simpa [residuals, xsSpec, ysSpec, yHatSpec] using ih)
-
-/-
-lemma residual_bOf_eq_centered_pointwise
-  (data : List (ℝ × ℝ)) (m : ℝ) :
-  ∀ (a b : ℝ), (a, b) ∈ data →
-    b - (m * a + bOf data m) = b - yBarSpecR data - m * (a - xBarSpecR data) := by
-  intro a b hab
-  simp [bOf]
-  ring
--/
 
 
 lemma residuals_bOf_eq_centered
@@ -619,7 +591,6 @@ lemma sse_bOf_quadratic
   rw [hVr]
 
 
-
 lemma quadratic_min_at_slope
   (data : List (ℝ × ℝ)) (m : ℝ)
   (hvr : 0 < vrSpecR data) :
@@ -727,6 +698,7 @@ lemma listSumR_map_const {β : Type} (c : ℝ) (xs : List β) :
       simp [listSumR_cons, ih, List.map, Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_assoc, add_comm, add_left_comm]
       aesop
 
+
 lemma ssResSpec_eq_listSumR_residuals_sq
   (data : List (ℝ × ℝ)) (m b : ℝ) :
   ssResSpec data m b
@@ -794,6 +766,7 @@ lemma listSumR_yHatSpec (data : List (ℝ × ℝ)) (m b : ℝ) :
   _ = listSumR (List.map (fun x ↦ m * x) (List.map Prod.fst data)) + listSumR (List.map (fun x ↦ b) (List.map Prod.fst data)) := by exact hadd
   _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by rw [hm, hb, hlen]
   _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by rfl
+
 
 /-- Sum of residuals is zero when using the optimal intercept `bOf data m`. -/
 lemma listSumR_residuals_bOf_eq_zero
@@ -900,7 +873,6 @@ lemma sse_minimized_at_slope_bOf
     _ = ssResSpec data m (bOf data m) := by
       symm
       simpa using (sse_bOf_quadratic (data := data) (m := m))
-
 
 
 lemma ssResSpec_shift_intercept
@@ -1041,208 +1013,14 @@ lemma sse_minimized_at_slope_and_intercept
   simpa [sse] using
     (ssResSpec_minimized_at_slope_and_intercept
       (data := data) (m := m) (b := b) hlen hvr)
-
-
-
-/-- Helper: `BETLike.ofNat` for ℝ is coercion. -/
-@[simp] lemma ofNat_eq_cast (n : Nat) : (BETLike.ofNat (α := ℝ) n) = (n : ℝ) := by rfl
-
-
-
 theorem linearRegression_returns_slope_intercept
   (data : List (ℝ × ℝ)) (m b r2 : ℝ)
   (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
   m = slopeSpec data ∧ b = interceptSpec data := by
-  classical
-
-  -- length guard
-  by_cases hlen : data.length < 2
-  · have : linearRegression (α := ℝ) data = none := by
-      simp [linearRegression, hlen]
-    cases this ▸ h
-
-  · have hlen' : ¬ data.length < 2 := hlen
-
-    -- name the exec locals
-    set n   : ℝ := BETLike.ofNat data.length with hn
-    set xs  : List ℝ := data.map Prod.fst with hxs
-    set ys  : List ℝ := data.map Prod.snd with hys
-    set xBar : ℝ := listSum xs / n with hxBar
-    set yBar : ℝ := listSum ys / n with hyBar
-    set cov : ℝ := listSum (data.map (fun (x, y) => (x - xBar) * (y - yBar))) with hcov
-    set vr  : ℝ := listSum (data.map (fun (x, _) => (x - xBar) ^ (2 : Nat))) with hvr
-
-    -- variance guard
-    by_cases hvr0 : BET.isZero vr
-    · have : HasIsZero.isZero (listSum (List.map (fun x => (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                  (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ))) data)) = true := by simpa [hvr, hxBar, hxs, hn] using hvr0
-
-      -- Now show the regression result is none, contradict h
-      have : linearRegression (α := ℝ) data = none := by
-        simp [linearRegression, hlen', hn, hxs, hys, hxBar, hyBar, hcov, hvr, hvr0]
-        aesop
-      cases this ▸ h
-
-    · have hExec : HasIsZero.isZero (listSum (List.map (fun x => (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                      (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ))) data)) = false ∧
-          listSum (List.map (fun x => (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                      (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ))) data) / listSum (List.map (fun x =>
-                    (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) * (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                  data) = m ∧ listSum (List.map Prod.snd data) / (data.length : ℝ) - listSum (List.map
-                        (fun x =>
-                          (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                            (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                        data) /
-                    listSum
-                      (List.map
-                        (fun x =>
-                          (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                        data) *
-                  (listSum (List.map Prod.fst data) / (data.length : ℝ))
-            =
-            b
-          ∧
-          (if
-                HasIsZero.isZero
-                    (listSum
-                      (List.map
-                        ((fun y =>
-                            (y - listSum (List.map Prod.snd data) / (data.length : ℝ)) *
-                              (y - listSum (List.map Prod.snd data) / (data.length : ℝ))) ∘
-                          Prod.snd)
-                        data)) =
-                  true then
-              BETLike.one
-            else
-              BETLike.one -
-                listSum
-                    (List.map (fun x => (x.1 - x.2) * (x.1 - x.2))
-                      ((List.map Prod.snd data).zip
-                        (List.map
-                          ((fun x =>
-                              listSum
-                                      (List.map
-                                        (fun x =>
-                                          (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                                            (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                                        data) /
-                                    listSum
-                                      (List.map
-                                        (fun x =>
-                                          (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                                        data) *
-                                  x +
-                                (listSum (List.map Prod.snd data) / (data.length : ℝ) -
-                                  listSum
-                                        (List.map
-                                          (fun x =>
-                                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                                              (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                                          data) /
-                                      listSum
-                                        (List.map
-                                          (fun x =>
-                                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                                              (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                                          data) *
-                                    (listSum (List.map Prod.fst data) / (data.length : ℝ))) ) ∘
-                            Prod.fst)
-                          data))) /
-                  listSum
-                    (List.map
-                      ((fun y =>
-                          (y - listSum (List.map Prod.snd data) / (data.length : ℝ)) *
-                            (y - listSum (List.map Prod.snd data) / (data.length : ℝ))) ∘
-                        Prod.snd)
-                      data)) =
-            r2 := by
-        -- This is exactly your "re-simp from scratch" step:
-        -- it produces the conjunction that includes `isZero(vr)=false`.
-        simpa [linearRegression, hlen', hn, hxs, hys, hxBar, hyBar, hcov, hvr, hvr0] using h
-
-      -- Extract slope/intercept equalities from the conjunction.
-      have hm_exec :
-          listSum
-                (List.map
-                  (fun x =>
-                    (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                      (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                  data) /
-              listSum
-                (List.map
-                  (fun x =>
-                    (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                      (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                  data)
-            =
-            m :=
-        hExec.2.1
-
-      have hb_exec :
-          listSum (List.map Prod.snd data) / (data.length : ℝ) -
-                listSum
-                      (List.map
-                        (fun x =>
-                          (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                            (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                        data) /
-                    listSum
-                      (List.map
-                        (fun x =>
-                          (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                        data) *
-                  (listSum (List.map Prod.fst data) / (data.length : ℝ))
-            =
-            b :=
-        hExec.2.2.1
-
-      -- Now bridge to spec. (This is the part you already planned.)
-      have hm : m = slopeSpec data := by
-        -- Turn hm_exec around and rewrite to your spec formula.
-        have : m =
-            listSum
-                  (List.map
-                    (fun x =>
-                      (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                        (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                    data) /
-                listSum
-                  (List.map
-                    (fun x =>
-                      (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                        (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                    data) := by
-          simpa using hm_exec.symm
-        -- If your `listSum` on ℝ is definitional to `listSumR`, this simp closes.
-        -- Otherwise, insert your lemma rewriting `listSum` -> `listSumR` here.
-        simpa [slopeSpec, covSpecR, vrSpecR, xBarSpecR, yBarSpecR,
-               xsSpec, ysSpec, nSpecR, listSumR] using this
-
-      have hb : b = interceptSpec data := by
-        have : b =
-            listSum (List.map Prod.snd data) / (data.length : ℝ) -
-                  listSum
-                        (List.map
-                          (fun x =>
-                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                              (x.2 - listSum (List.map Prod.snd data) / (data.length : ℝ)))
-                          data) /
-                      listSum
-                        (List.map
-                          (fun x =>
-                            (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)) *
-                              (x.1 - listSum (List.map Prod.fst data) / (data.length : ℝ)))
-                          data) *
-                    (listSum (List.map Prod.fst data) / (data.length : ℝ)) := by
-          simpa using hb_exec.symm
-        -- Use hm and unfold interceptSpec
-        simpa [interceptSpec, slopeSpec, covSpecR, vrSpecR, xBarSpecR, yBarSpecR,
-               xsSpec, ysSpec, nSpecR, listSumR, hm] using this
-
-      exact ⟨hm, hb⟩
+  rcases linearRegression_some_fields
+      (α := ℝ) (data := data) (m := m) (b := b) (r2 := r2) h with
+    ⟨_, hm, hb, _⟩
+  exact ⟨hm, hb⟩
 
 
 --## The main theorem: if the executable returns (m,b,r2), then m,b match the spec.
@@ -1275,11 +1053,10 @@ theorem linearRegression_certifies_minimizer
   (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
   ssResSpec data (slopeSpec data) (interceptSpec data)
     ≤ ssResSpec data m b := by
-  have hmb :
-      m = slopeSpec data ∧ b = interceptSpec data :=
-    linearRegression_returns_slope_intercept (data := data) (m := m) (b := b) (r2 := r2) h
-  rcases hmb with ⟨hm, hb⟩
+  rcases linearRegression_returns_slope_intercept (data := data) (m := m) (b := b) (r2 := r2) h with
+    ⟨hm, hb⟩
   simpa [hm, hb]
+
 
 lemma listSumR_map_nonneg {β : Type} (xs : List β) (f : β → ℝ)
     (hf : ∀ x, 0 ≤ f x) :
@@ -1324,8 +1101,6 @@ lemma linearRegression_some_vr_pos
 
   exact lt_of_le_of_ne hnonneg h0ne
 
-
---# linearRegression_returns_least_minimizer
 theorem linearRegression_returns_least_minimizer
   (data : List (ℝ × ℝ)) (m b r2 : ℝ)
   (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
@@ -1350,6 +1125,60 @@ theorem linearRegression_returns_least_minimizer
     (ssResSpec_minimized_at_slope_and_intercept
       (data := data) (m := m') (b := b') hlen hvr)
 
+/-- If `fitWindow` succeeds, its embedded regression result is exactly the regression
+computed on the executable linearized data. -/
+theorem fitWindow_some_regression
+  (window : List (Point ℝ)) (range : Nat × Nat) (fit : BETFit ℝ)
+  (h : fitWindow (α := ℝ) window range = some fit) :
+  linearRegression (α := ℝ) (linearizeWindow window) = some (fit.slope, fit.intercept, fit.rSquared) := by
+  classical
+  unfold fitWindow at h
+  cases hreg : linearRegression (α := ℝ) (linearizeWindow window) with
+  | none =>
+      simp [hreg] at h
+  | some triple =>
+      rcases triple with ⟨slope, intercept, r2⟩
+      cases hzeroNm : BET.isZero (slope + intercept) with
+      | true =>
+          simp [hreg, hzeroNm] at h
+          have hzeroNm' : HasIsZero.isZero (slope + intercept) = true := by
+            simpa [BET.isZero] using hzeroNm
+          cases hzeroNm'.symm.trans h.1
+      | false =>
+          cases hzeroInt : BET.isZero intercept with
+          | true =>
+              simp [hreg, hzeroNm, hzeroInt] at h
+              have hzeroInt' : HasIsZero.isZero intercept = true := by
+                simpa [BET.isZero] using hzeroInt
+              cases hzeroInt'.symm.trans h.2.1
+          | false =>
+              simp [hreg, hzeroNm, hzeroInt] at h
+              have hfit :
+                  ({ slope := slope
+                   , intercept := intercept
+                   , rSquared := r2
+                   , nm := BETLike.one / (slope + intercept)
+                   , c := slope / intercept + BETLike.one
+                   , range := range
+                   , nPoints := window.length } : BETFit ℝ)
+                    = fit := h.2.2
+              cases hfit
+              simpa using hreg
+
+/-- The least-squares minimizer theorem now connects directly to the executable
+window-fitting pipeline: whenever `fitWindow` succeeds, its returned line minimizes
+the residual sum of squares on the linearized window data. -/
+theorem fitWindow_returns_least_minimizer
+  (window : List (Point ℝ)) (range : Nat × Nat) (fit : BETFit ℝ)
+  (h : fitWindow (α := ℝ) window range = some fit) :
+  ∀ m b : ℝ,
+    ssResSpec (linearizeWindow window) fit.slope fit.intercept ≤
+      ssResSpec (linearizeWindow window) m b := by
+  have hreg := fitWindow_some_regression (window := window) (range := range) (fit := fit) h
+  exact linearRegression_returns_least_minimizer
+    (data := linearizeWindow window)
+    (m := fit.slope) (b := fit.intercept) (r2 := fit.rSquared) hreg
+
 
 --## BET Parameter Soundness theorem
 
@@ -1360,7 +1189,6 @@ noncomputable def cFromLine (intercept slope : ℝ) : ℝ := 1 + slope / interce
 
 -- Optional: monolayer pressure from C (if you use it)
 noncomputable def p_nmFromC (c : ℝ) : ℝ := 1 / (Real.sqrt c + 1)
-
 
 
 theorem betExtraction_sound
@@ -1379,10 +1207,5 @@ theorem betExtraction_sound
     simpa [hb, hm]
   · -- C soundness
     simpa [hb, hm]
-
-
-
-
-
 
 end BET
