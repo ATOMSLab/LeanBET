@@ -3,19 +3,10 @@ import BET.Instance
 import BET.Function
 
 namespace BET
-
-open IO
-
-set_option linter.style.longLine false
-set_option linter.style.commandStart false
-set_option linter.style.missingEnd false
-set_option linter.style.emptyLine false
-set_option linter.unnecessarySimpa false
-set_option linter.unusedVariables false
-set_option linter.unusedSimpArgs false
-set_option linter.unusedSectionVars false
 set_option linter.flexible false
-
+set_option linter.style.emptyLine false
+set_option linter.style.longLine false
+set_option linter.unnecessarySimpa false
 /- ============================================================
    Step 1: Declarative “spec” definitions (polymorphic)
    ============================================================ -/
@@ -55,7 +46,7 @@ noncomputable def slopeSpec (data : List (ℝ × ℝ)) : ℝ :=
   covSpecR data / vrSpecR data
 
 /-- Spec: intercept b = ȳ - m x̄. -/
-noncomputable def interceptSpec(data : List (ℝ × ℝ)) : ℝ :=
+noncomputable def interceptSpec (data : List (ℝ × ℝ)) : ℝ :=
   let m := slopeSpec data
   yBarSpecR data - m * xBarSpecR data
 
@@ -115,17 +106,30 @@ theorem linearRegression_some_vr_notZero
     (data : List (ℝ × ℝ)) {m b r2 : ℝ}
     (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
     BET.isZero (vrSpecR data) = false := by
-  classical
-  have hlen_ge : 2 ≤ data.length := linearRegression_some_length (α := ℝ) data h
-  have hlen : ¬ data.length < 2 := Nat.not_lt.mpr hlen_ge
+  have hlen : ¬ data.length < 2 := by
+    exact Nat.not_lt.mpr (linearRegression_some_length (α := ℝ) data h)
   set vr : ℝ := vrSpecR data with hvr
   cases hz : BET.isZero vr with
   | true =>
+      have hz' :
+          BET.isZero
+            (listSum
+              (data.map
+                (fun x => (x.1 - listSum (data.map Prod.fst) / BETLike.ofNat data.length) ^ (2 : Nat)))) = true := by
+        simpa [hvr, vrSpecR, xBarSpecR, nSpecR, xsSpec] using hz
+      have hz'' :
+          HasIsZero.isZero
+            (listSum
+              (data.map
+                (fun x => (x.1 - listSum (data.map Prod.fst) / BETLike.ofNat data.length) ^ (2 : Nat)))) = true := by
+        simpa [BET.isZero] using hz'
       have : linearRegression (α := ℝ) data = none := by
-        simp [linearRegression, hlen]
-        aesop
-      simpa [h]
-
+        unfold linearRegression
+        rw [if_neg hlen]
+        dsimp
+        simp [hz'']
+      rw [this] at h
+      cases h
   | false =>
       simpa [hvr] using hz
 
@@ -138,31 +142,29 @@ This lemma is the “field-extraction bridge”:
 if the code returns `some (m,b,r2)`, then those fields *equal* the spec formulas.
 -/
 theorem linearRegression_some_fields
-  {α : Type} [BETLike α]
-  (data : List (ℝ  × ℝ ))
+  (data : List (ℝ × ℝ))
   (m b r2 : ℝ)
   (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
-  BET.isZero (α := ℝ) (vrSpecR  data) = false ∧
+  BET.isZero (α := ℝ) (vrSpecR data) = false ∧
   m = slopeSpec data ∧
   b = interceptSpec data ∧
   r2 = r2Spec data (slopeSpec data) (interceptSpec data) := by
   classical
   have hlen : ¬ data.length < 2 := by
     intro hlt
-    simpa [linearRegression, hlt] using h
+    simp [linearRegression, hlt] at h
   have hspec :
       BET.isZero (α := ℝ) (vrSpecR data) = false ∧
       slopeSpec data = m ∧
       interceptSpec data = b ∧
       r2Spec data (slopeSpec data) (interceptSpec data) = r2 := by
-    simpa [ linearRegression, hlen, nSpecR, xsSpec, ysSpec, xBarSpecR, yBarSpecR, covSpecR, vrSpecR, slopeSpec, interceptSpec
-      , yHatSpec, ssTotSpec, ssResSpec, r2Spec] using h
-  refine And.intro hspec.1 ?_
-  refine And.intro ?_ ?_
-  · exact hspec.2.1.symm
-  refine And.intro ?_ ?_
-  · exact hspec.2.2.1.symm
-  · exact hspec.2.2.2.symm
+    simpa [
+      linearRegression, hlen, nSpecR, xsSpec, ysSpec, xBarSpecR, yBarSpecR,
+      covSpecR, vrSpecR, slopeSpec, interceptSpec, yHatSpec, ssTotSpec,
+      ssResSpec, r2Spec
+    ] using h
+  exact ⟨hspec.1, hspec.2.1.symm, hspec.2.2.1.symm, hspec.2.2.2.symm⟩
+
 
 
 
@@ -172,25 +174,23 @@ theorem linearRegression_some_fields
    Step 1: SSE objective (spec)
    ============================================================ -/
 
-noncomputable def sseSpec (data : List (ℝ  × ℝ)) (m b : ℝ) : ℝ :=
-  ssResSpec  data m b
-
-@[simp] lemma sseSpec_def  (data : List (ℝ × ℝ)) (m b : ℝ) :
-    sseSpec data m b = ssResSpec data m b := by rfl
-
 @[simp] theorem interceptSpec_eq_yBar_sub_slope_mul_xBar
     (data : List (ℝ × ℝ)) :
     interceptSpec data
       = yBarSpecR data - slopeSpec data * xBarSpecR data := by simp [interceptSpec]
 
+
+
 --## Linear regression minimizer lemmas
 /-- Sum of squared errors: SSE(m,b) = Σ (y - (m x + b))^2.
 We reuse your spec `ssResSpec` exactly. -/
 
-noncomputable def sse (data : List (ℝ × ℝ)) (m b : ℝ) : ℝ := ssResSpec  data m b
+noncomputable def sse (data : List (ℝ × ℝ)) (m b : ℝ) : ℝ :=
+  ssResSpec data m b
 
 /-- Best intercept for a fixed slope `m`: b(m) = ȳ - m x̄. -/
-noncomputable def bOf (data : List (ℝ × ℝ)) (m : ℝ) : ℝ := yBarSpecR data - m * xBarSpecR data
+noncomputable def bOf (data : List (ℝ × ℝ)) (m : ℝ) : ℝ :=
+  yBarSpecR data - m * xBarSpecR data
 
 /-- Residuals eᵢ(m,b) = yᵢ - (m xᵢ + b). -/
 noncomputable def residuals (data : List (ℝ × ℝ)) (m b : ℝ) : List ℝ :=
@@ -216,20 +216,6 @@ lemma foldl_add_const_left (x a : ℝ) (xs : List ℝ) :
   simp [listSumR, List.foldl]
   simpa [add_comm, add_left_comm, add_assoc] using
     (foldl_add_const_left x 0 xs)
-
-
--- SSE is sum of squared residuals
-lemma sse_eq_sum_sq_residuals (data : List (ℝ × ℝ)) (m b : ℝ) :
-  sse data m b
-    =
-  listSumR ((residuals data m b).map (fun e => e ^ (2 : Nat))) := by
-  simp [sse, residuals, ssResSpec, listSumR]
-  aesop
-
-
-/-- Convenience: square on ℝ. -/
-@[simp] lemma sq (x : ℝ) : x^2 = x*x := by
-  ring
 
 
 /-- Residuals shift when changing intercept: e(m,b) = e(m,b0) - (b - b0). -/
@@ -268,15 +254,16 @@ lemma listSumR_map_sub_const (xs : List ℝ) (c : ℝ) :
 
 
 
-@[simp] lemma xsSpec_length (data : List (ℝ  × ℝ)) :
-    (xsSpec data).length = data.length := by
+@[simp] lemma xsSpec_length (data : List (ℝ × ℝ)) :
+  (xsSpec data).length = data.length := by
   simp [xsSpec]
 
 lemma xsSpec_ne_nil_of_length_ne_zero (data : List (ℝ × ℝ)) (hn : data.length ≠ 0) :
     xsSpec data ≠ [] := by
   intro hxs
   have : data.length = 0 := by
-    have hxlen : (xsSpec  data).length = 0 := by simpa [hxs]
+    have hxlen : (xsSpec data).length = 0 := by
+      simp [hxs]
     simpa [xsSpec_length data] using hxlen
   exact hn this
 
@@ -289,14 +276,12 @@ lemma sum_centered_xs_eq_zero
     have hdata : data = [] := by
       simpa using hlen
     simp [hdata, xsSpec, xBarSpecR, nSpecR, listSumR_nil]
-
   · -- non-degenerate
     have hn : (data.length : ℝ) ≠ 0 := by
       intro hcast
       have : data.length = 0 := by
         exact_mod_cast hcast
       exact hlen this
-
     -- use your helper: sum (x - c) = sum x - (len xs) * c
     have hsub :
       listSumR ((xsSpec data).map (fun x => x - xBarSpecR data))
@@ -304,17 +289,20 @@ lemma sum_centered_xs_eq_zero
       listSumR (xsSpec data) - ((xsSpec data).length : ℝ) * xBarSpecR data := by
       simpa using
         (listSumR_map_sub_const (xs := xsSpec data) (c := xBarSpecR data))
-
     -- length of xsSpec equals length of data
     have hxlen : (xsSpec data).length = data.length := by
       simp [xsSpec]
-
     calc
       listSumR ((xsSpec data).map (fun x => x - xBarSpecR data))
           = listSumR (xsSpec data) - ((xsSpec data).length : ℝ) * xBarSpecR data := hsub
-      _   = listSumR (xsSpec data) - (data.length : ℝ) * xBarSpecR data := by simpa [hxlen]
-      _   = listSumR (xsSpec data) - (data.length : ℝ) * (listSumR (xsSpec data) / (data.length : ℝ)) := by simp [xBarSpecR, nSpecR]
-      _   = 0 := by field_simp [hn]; ring
+      _ = listSumR (xsSpec data) - (data.length : ℝ) * xBarSpecR data := by
+        simp [hxlen]
+      _ = listSumR (xsSpec data) - (data.length : ℝ) *
+          (listSumR (xsSpec data) / (data.length : ℝ)) := by
+        simp [xBarSpecR, nSpecR]
+      _ = 0 := by
+        field_simp [hn]
+        ring
 
 lemma residual_bOf_eq_centered
   (data : List (ℝ × ℝ)) (m : ℝ) (x y : ℝ) :
@@ -339,12 +327,14 @@ lemma residuals_eq_map
 
 lemma residuals_bOf_eq_centered
   (data : List (ℝ × ℝ)) (m : ℝ) :
-  residuals data m (bOf data m) = data.map (fun (x, y) => (y - yBarSpecR data) - m * (x - xBarSpecR data)) := by
+  residuals data m (bOf data m) =
+    data.map (fun (x, y) => (y - yBarSpecR data) - m * (x - xBarSpecR data)) := by
   classical
-  simp [residuals_eq_map]
-  intro a b hab
-  simp [bOf]
-  ring
+  rw [residuals_eq_map]
+  apply List.map_congr_left
+  intro xy hxy
+  rcases xy with ⟨x, y⟩
+  exact residual_bOf_eq_centered (data := data) (m := m) (x := x) (y := y)
 
 lemma sum_centered_ys_eq_zero (data : List (ℝ × ℝ)) :
   listSumR ((ysSpec data).map (fun y => y - yBarSpecR data)) = 0 := by
@@ -368,14 +358,14 @@ lemma sum_centered_ys_eq_zero (data : List (ℝ × ℝ)) :
     calc
       listSumR ((ysSpec data).map (fun y => y - yBarSpecR data))
           = listSumR (ysSpec data) - ((ysSpec data).length : ℝ) * yBarSpecR data := hsub
-      _   = listSumR (ysSpec data) - (data.length : ℝ) * yBarSpecR data := by
-              simpa [hylen]
-      _   = listSumR (ysSpec data) - (data.length : ℝ) *
-              (listSumR (ysSpec data) / (data.length : ℝ)) := by
-              simp [yBarSpecR, nSpecR]
-      _   = 0 := by
-              field_simp [hn]
-              ring
+      _ = listSumR (ysSpec data) - (data.length : ℝ) * yBarSpecR data := by
+        simp [hylen]
+      _ = listSumR (ysSpec data) - (data.length : ℝ) *
+          (listSumR (ysSpec data) / (data.length : ℝ)) := by
+        simp [yBarSpecR, nSpecR]
+      _ = 0 := by
+        field_simp [hn]
+        ring
 
 lemma listSum_eq_listSumR (xs : List ℝ) :
     listSum (α := ℝ) xs = listSumR xs := by
@@ -388,7 +378,7 @@ lemma ssTotSpec_eq_listSumR
   ssTotSpec data
     =
     let yBar := yBarSpecR data
-    listSumR (data.map (fun (x, y) => (y - yBar) ^ (2 : Nat))) := by
+    listSumR (data.map (fun (_, y) => (y - yBar) ^ (2 : Nat))) := by
   classical
   unfold ssTotSpec
   simp [ysSpec, listSum_eq_listSumR, listSumR]
@@ -438,21 +428,19 @@ lemma listSumR_map_sub {β : Type} (xs : List β) (f g : β → ℝ) :
     listSumR (xs.map f) - listSumR (xs.map g) := by
   simp [sub_eq_add_neg, listSumR_map_add, listSumR_map_neg]
 
-
-lemma sq_eq_mul (t : ℝ) : t ^ (2 : Nat) = t * t := by
-  simp [pow_two]
-
-
 lemma ssResSpec_eq_sum_sq_residuals (data : List (ℝ × ℝ)) (m b : ℝ) :
   ssResSpec data m b
     =
   listSumR ((residuals data m b).map (fun e => e * e)) := by
   classical
-  unfold ssResSpec
-  simp [listSum_eq_listSumR]
-  unfold residuals
-  simp
-  aesop
+  unfold ssResSpec residuals ysSpec yHatSpec xsSpec
+  rw [listSum_eq_listSumR]
+  simp_rw [pow_two, List.map_map]
+  refine congrArg listSumR ?_
+  apply List.map_congr_left
+  intro x hx
+  rcases x with ⟨y, yh⟩
+  simp [Function.comp]
 
 
 lemma sse_bOf_quadratic
@@ -463,40 +451,22 @@ lemma sse_bOf_quadratic
   classical
   unfold sse
   rw [ssResSpec_eq_sum_sq_residuals]
-
-  -- rewrite residuals at bOf into centered form (your lemma)
-  have hcenter :
-      residuals data m (bOf data m)
-        =
-      data.map (fun xy =>
-        xy.2 - yBarSpecR data - m * (xy.1 - xBarSpecR data)) := by
-    simpa using (residuals_bOf_eq_centered (data := data) (m := m))
-  have hcenterSq :
-      (residuals data m (bOf data m)).map (fun e => e * e)
-        =
-      (data.map (fun xy =>
-        xy.2 - yBarSpecR data - m * (xy.1 - xBarSpecR data))).map (fun e => e * e) := by
-    simpa using congrArg (fun L => L.map (fun e => e * e)) hcenter
-
-  rw [hcenterSq]
-  clear hcenterSq hcenter
-
-  -- Abbreviate bars and centered parts
   set xBar := xBarSpecR data
   set yBar := yBarSpecR data
   let A : (ℝ × ℝ) → ℝ := fun xy => xy.2 - yBar
   let B : (ℝ × ℝ) → ℝ := fun xy => xy.1 - xBar
-
-  have hrewrite :
-      (data.map (fun xy => xy.2 - yBarSpecR data - m * (xy.1 - xBarSpecR data))).map (fun e => e * e)
+  have hcenterSq :
+      listSumR ((residuals data m (bOf data m)).map (fun e => e * e))
         =
-      data.map (fun xy => (A xy - m * B xy) * (A xy - m * B xy)) := by
-    simp [List.map_map]
+      listSumR (data.map (fun xy => (A xy - m * B xy) * (A xy - m * B xy))) := by
+    rw [residuals_bOf_eq_centered (data := data) (m := m)]
+    simp only [List.map_map]
+    apply congrArg listSumR
+    apply List.map_congr_left
     intro xy hxy
-    simp [List.map_map, A, B, xBar, yBar]
-
-
-  -- Expand the square: (A - mB)^2 = A^2 - 2mAB + m^2 B^2
+    rcases xy with ⟨x, y⟩
+    simp [A, B, xBar, yBar]
+  rw [hcenterSq]
   have hexpand :
       data.map (fun xy => (A xy - m * B xy) * (A xy - m * B xy))
         =
@@ -505,24 +475,8 @@ lemma sse_bOf_quadratic
     apply List.map_congr_left
     intro xy hxy
     ring
-    -- 1) First normalize hrewrite so it matches yBar/xBar (not yBarSpecR/xBarSpecR)
-  have hrewrite' :
-      List.map (fun e => e * e)
-          (List.map (fun xy => xy.2 - yBar - m * (xy.1 - xBar)) data)
-        =
-      List.map (fun xy => (A xy - m * B xy) * (A xy - m * B xy)) data := by
-    simpa [xBar, yBar] using hrewrite
-
-  -- 2) Rewrite inside listSumR using congrArg
-  have hsum1 := congrArg listSumR hrewrite'
-  rw [hsum1]
-  clear hsum1 hrewrite' hrewrite
-
-  -- 3) Now lift hexpand through listSumR too
   have hsum2 := congrArg listSumR hexpand
   rw [hsum2]
-  clear hsum2 hexpand
-
   have hsplit1 :
       listSumR (data.map (fun xy =>
         (A xy * A xy) - (2 * m) * (A xy * B xy) + (m ^ (2 : Nat)) * (B xy * B xy)))
@@ -536,7 +490,6 @@ lemma sse_bOf_quadratic
         (g := fun xy => (m ^ (2 : Nat)) * (B xy * B xy)))
   rw [hsplit1]
   clear hsplit1
-
   have hsplit2 :
       listSumR (data.map (fun xy => (A xy * A xy) - (2 * m) * (A xy * B xy)))
         =
@@ -549,7 +502,6 @@ lemma sse_bOf_quadratic
         (g := fun xy => (2 * m) * (A xy * B xy)))
   rw [hsplit2]
   clear hsplit2
-
   -- pull constants out
   have hconst1 :
       listSumR (data.map (fun xy => (2 * m) * (A xy * B xy)))
@@ -557,37 +509,32 @@ lemma sse_bOf_quadratic
       (2 * m) * listSumR (data.map (fun xy => A xy * B xy)) := by
     simpa [mul_assoc] using
       (listSumR_map_mul_const (xs := data) (c := (2 * m)) (f := fun xy => A xy * B xy))
-
   have hconst2 :
       listSumR (data.map (fun xy => (m ^ (2 : Nat)) * (B xy * B xy)))
         =
       (m ^ (2 : Nat)) * listSumR (data.map (fun xy => B xy * B xy)) := by
     simpa [mul_assoc] using
       (listSumR_map_mul_const (xs := data) (c := (m ^ (2 : Nat))) (f := fun xy => B xy * B xy))
-
   rw [hconst1, hconst2]
   clear hconst1 hconst2
-
   have hTot :
       listSumR (data.map (fun xy => A xy * A xy)) = ssTotSpec data := by
     -- use the ssTotSpec_eq_listSumR lemma
-    simpa [A, yBar, xBar] using (ssTotSpec_eq_listSumR (data := data)).symm
+    simpa [A, yBar, xBar, pow_two] using (ssTotSpec_eq_listSumR (data := data)).symm
   rw [hTot]
   clear hTot
-
   -- 2) A*B sum = covSpecR (up to commutativity)
   have hCov :
       listSumR (data.map (fun xy => A xy * B xy)) = covSpecR data := by
     unfold covSpecR
-    simp [A, B, xBar, yBar, mul_comm, mul_left_comm, mul_assoc]
+    simp [A, B, xBar, yBar, mul_comm]
   rw [hCov]
   clear hCov
-
   -- 3) B*B sum = vrSpecR (since (x-xBar)^2 = (x-xBar)*(x-xBar))
   have hVr :
       listSumR (data.map (fun xy => B xy * B xy)) = vrSpecR data := by
     unfold vrSpecR
-    simp [B, xBar]
+    simp [B, xBar, pow_two]
   rw [hVr]
 
 
@@ -599,27 +546,22 @@ lemma quadratic_min_at_slope
   ssTotSpec data - 2 * (slopeSpec data) * covSpecR data
     + (slopeSpec data) ^ (2 : Nat) * vrSpecR data := by
   classical
-
   -- abbreviations
   set vr : ℝ := vrSpecR data
   set cov : ℝ := covSpecR data
   have hvr' : 0 < vr := by
     simpa [vr] using hvr
-
   -- introduce s = cov/vr so ring never sees division later
   set s : ℝ := cov / vr
-
   -- slopeSpec = cov/vr = s
   have hslope : slopeSpec data = s := by
     simp [s, slopeSpec, covSpecR, vrSpecR, cov, vr]
-
   -- crucial bridge: cov = s * vr
   have hcov : cov = s * vr := by
-    -- s = cov/vr  =>  s*vr = cov  (need vr ≠ 0)
+    -- s = cov/vr => s*vr = cov (need vr ≠ 0)
     have hne : vr ≠ 0 := ne_of_gt hvr'
     dsimp [s]
     field_simp [hne]
-
   -- compute the difference as a square times vr
   have hdiff :
       (ssTotSpec data - 2 * m * cov + m ^ (2 : Nat) * vr)
@@ -631,12 +573,10 @@ lemma quadratic_min_at_slope
     -- eliminate cov in favor of s*vr so ring can close
     simp [hcov]
     ring
-
   have hvr_nonneg : 0 ≤ vr := le_of_lt hvr'
   have hsq_nonneg : 0 ≤ (m - s) ^ (2 : Nat) := by
     -- square is nonnegative
     simpa [pow_two] using sq_nonneg (m - s)
-
   have hdiff_nonneg :
       0 ≤
       (ssTotSpec data - 2 * m * cov + m ^ (2 : Nat) * vr)
@@ -649,13 +589,11 @@ lemma quadratic_min_at_slope
     have hsq : 0 ≤ (m - s) ^ (2 : Nat) := by
       simpa [pow_two] using sq_nonneg (m - s)
     exact mul_nonneg hvr_nonneg hsq
-
   have hmain :
       ssTotSpec data - 2 * m * cov + m ^ (2 : Nat) * vr
         ≥
       ssTotSpec data - 2 * s * cov + s ^ (2 : Nat) * vr := by
     linarith
-
   simpa [cov, vr, hslope] using hmain
 
 
@@ -665,27 +603,23 @@ lemma sse_bOf_minimized_at_slope
   ssResSpec data (slopeSpec data) (bOf data (slopeSpec data))
     ≤
   ssResSpec data m (bOf data m) := by
-
   have hq_m :
       ssResSpec data m (bOf data m)
         =
       ssTotSpec data - 2 * m * covSpecR data + m ^ (2 : Nat) * vrSpecR data := by
     simpa [sse] using (sse_bOf_quadratic (data := data) (m := m))
-
   have hq_s :
       ssResSpec data (slopeSpec data) (bOf data (slopeSpec data))
         =
       ssTotSpec data - 2 * (slopeSpec data) * covSpecR data
         + (slopeSpec data) ^ (2 : Nat) * vrSpecR data := by
     simpa [sse] using (sse_bOf_quadratic (data := data) (m := slopeSpec data))
-
   have hquad :
       ssTotSpec data - 2 * m * covSpecR data + m ^ (2 : Nat) * vrSpecR data
         ≥
       ssTotSpec data - 2 * (slopeSpec data) * covSpecR data
         + (slopeSpec data) ^ (2 : Nat) * vrSpecR data :=
     quadratic_min_at_slope (data := data) (m := m) hvr
-
   linarith [hq_m, hq_s, hquad]
 
 
@@ -694,28 +628,16 @@ lemma listSumR_map_const {β : Type} (c : ℝ) (xs : List β) :
   induction xs with
   | nil =>
       simp [listSumR]
-  | cons a xs ih =>
-      simp [listSumR_cons, ih, List.map, Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_assoc, add_comm, add_left_comm]
-      aesop
-
-
-lemma ssResSpec_eq_listSumR_residuals_sq
-  (data : List (ℝ × ℝ)) (m b : ℝ) :
-  ssResSpec data m b
-    =
-  listSumR ((residuals data m b).map (fun e => e * e)) := by
-  unfold ssResSpec residuals ysSpec yHatSpec xsSpec
-  simp [listSumR, pow_two, List.map_map, List.zip_map_right, List.zip_map_left, Function.comp]
-  aesop
-
+  | cons _ xs ih =>
+      rw [List.map, listSumR_cons, ih]
+      simp [Nat.cast_add, Nat.cast_one, add_mul, one_mul]
+      ring
 
 lemma listSumR_yHatSpec (data : List (ℝ × ℝ)) (m b : ℝ) :
     listSumR (yHatSpec data m b)
       =
     m * listSumR (xsSpec data) + (data.length : ℝ) * b := by
-
-  simp [yHatSpec, xsSpec]
-
+  unfold yHatSpec xsSpec
   have hadd :
       listSumR (List.map (fun x => m * x + b) (List.map Prod.fst data))
         =
@@ -725,127 +647,51 @@ lemma listSumR_yHatSpec (data : List (ℝ × ℝ)) (m b : ℝ) :
     simpa [listSumR] using
       (listSumR_map_add (xs := List.map Prod.fst data)
         (f := fun x => m * x) (g := fun _ => b))
-
   have hm :
       listSumR (List.map (fun x => m * x) (List.map Prod.fst data))
         =
       m * listSumR (List.map Prod.fst data) := by
     simpa using
       (listSumR_map_mul_const (xs := List.map Prod.fst data) (c := m) (f := fun x => x))
-
   have hb :
       listSumR (List.map (fun _ => b) (List.map Prod.fst data))
         =
       ((List.map Prod.fst data).length : ℝ) * b := by
     simpa using
       (listSumR_map_const (xs := List.map Prod.fst data) (c := b))
-
   have hlen : (List.map Prod.fst data).length = data.length := by
     simp
-
-  have hcomp_add :
-    List.map ((fun x ↦ m * x + b) ∘ Prod.fst) data
-      =
-    List.map (fun x ↦ m * x + b) (List.map Prod.fst data) := by
-     simpa [List.map_map]
-
-  have hcomp_m :
-    List.map ((fun x ↦ m * x) ∘ Prod.fst) data
-      =
-    List.map (fun x ↦ m * x) (List.map Prod.fst data) := by
-     simpa [List.map_map]
-
-  have hcomp_b :
-    List.map ((fun x ↦ b) ∘ Prod.fst) data
-      =
-    List.map (fun x ↦ b) (List.map Prod.fst data) := by
-    simpa [List.map_map]
-
   calc
-    listSumR (List.map ((fun x ↦ m * x + b) ∘ Prod.fst) data) = listSumR (List.map (fun x ↦ m * x + b) (List.map Prod.fst data)) := by simpa using hcomp_add
-  _ = listSumR (List.map (fun x ↦ m * x) (List.map Prod.fst data)) + listSumR (List.map (fun x ↦ b) (List.map Prod.fst data)) := by exact hadd
-  _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by rw [hm, hb, hlen]
-  _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by rfl
+    listSumR (List.map (fun x ↦ m * x + b) (List.map Prod.fst data)) =
+        listSumR (List.map (fun x ↦ m * x) (List.map Prod.fst data)) +
+          listSumR (List.map (fun x ↦ b) (List.map Prod.fst data)) := by
+      exact hadd
+    _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by
+      rw [hm, hb, hlen]
+    _ = m * listSumR (List.map Prod.fst data) + ↑data.length * b := by
+      rfl
 
 
 /-- Sum of residuals is zero when using the optimal intercept `bOf data m`. -/
 lemma listSumR_residuals_bOf_eq_zero
     (data : List (ℝ × ℝ)) (m : ℝ)
-    (hlen : data.length ≠ 0) :
+    (_hlen : data.length ≠ 0) :
     listSumR (residuals data m (bOf data m)) = 0 := by
-  classical
-  have hn : (data.length : ℝ) ≠ 0 := by exact_mod_cast hlen
-
-  have hres : residuals data m (bOf data m) = data.map (fun xy => xy.2 - (m * xy.1 + bOf data m)) := by
-    simpa [residuals_eq_map]
-
-  let f : (ℝ × ℝ) → ℝ := fun xy => xy.2
-  let g : (ℝ × ℝ) → ℝ := fun xy => (m * xy.1 + bOf data m)
-
-  have hsplit :
-      listSumR (List.map (fun xy : ℝ × ℝ => xy.2 + (-bOf data m + -(m * xy.1))) data)
+  rw [residuals_bOf_eq_centered (data := data) (m := m)]
+  rw [listSumR_map_sub]
+  have hys : listSumR (data.map (fun xy => xy.2 - yBarSpecR data)) = 0 := by
+    simpa [ysSpec] using sum_centered_ys_eq_zero data
+  have hxs :
+      listSumR (data.map (fun xy => m * (xy.1 - xBarSpecR data)))
         =
-      listSumR (List.map f data) + - listSumR (List.map g data) := by
-    have hfun :
-        (fun xy : ℝ × ℝ => xy.2 + (-bOf data m + -(m * xy.1)))
-          = (fun xy : ℝ × ℝ => f xy + - g xy) := by
-      funext xy
-      simp [f, g]
-    simpa [hfun] using
-      (by
-        calc
-          listSumR (List.map (fun xy => f xy + - g xy) data)
-              =
-            listSumR (List.map f data) + listSumR (List.map (fun xy => - g xy) data) := by
-              simpa using (listSumR_map_add (xs := data) (f := f) (g := fun xy => - g xy))
-          _ =
-            listSumR (List.map f data) + - listSumR (List.map g data) := by
-              simpa using congrArg (fun t => listSumR (List.map f data) + t)
-                (listSumR_map_neg (xs := data) (f := g)))
-
-  have hf : data.map f = ysSpec data := by simp [ysSpec, f]
-  have hg : data.map g = (yHatSpec data m (bOf data m)) := by simp [yHatSpec, xsSpec, g, List.map_map]
-
-  have hmap :
-      List.map (fun xy => xy.2 - (m * xy.1 + bOf data m)) data
-        = List.map (fun xy => xy.2 + (-bOf data m + -(m * xy.1))) data := by
-    apply List.map_congr_left
-    intro xy hxy
-    ring
-
-  have hmap :
-    List.map (fun xy ↦ xy.2 - (m * xy.1 + bOf data m)) data
-      = List.map (fun xy ↦ xy.2 + (-bOf data m + -(m * xy.1))) data := by
-     apply List.map_congr_left
-     intro xy hxy
-     ring
-
-
-  have hsum :
-      listSumR (residuals data m (bOf data m))
-        = listSumR (ysSpec data) - listSumR (yHatSpec data m (bOf data m)) := by
-    calc
-      listSumR (residuals data m (bOf data m)) = listSumR (List.map (fun xy ↦ xy.2 - (m * xy.1 + bOf data m)) data) := by simpa [hres]
-      _ = listSumR (List.map (fun xy ↦ xy.2 + (-bOf data m + -(m * xy.1))) data) := by simpa [hmap]
-      _ = listSumR (List.map f data) + - listSumR (List.map g data) := by simpa using hsplit
-      _ = listSumR (List.map f data) - listSumR (List.map g data) := by simp [sub_eq_add_neg]
-      _ = listSumR (ysSpec data) - listSumR (yHatSpec data m (bOf data m)) := by simp [hf, hg]
-
-  have hyHat :
-      listSumR (yHatSpec data m (bOf data m))
-        = m * listSumR (xsSpec data) + (data.length : ℝ) * (bOf data m) := by
-    simpa using (listSumR_yHatSpec (data := data) (m := m) (b := bOf data m))
-
-  have hbOf :
-      (data.length : ℝ) * (bOf data m) = listSumR (ysSpec data) - m * listSumR (xsSpec data) := by
-    simp [bOf, yBarSpecR, xBarSpecR, hn]
-    field_simp [hn]
-
-  calc
-    listSumR (residuals data m (bOf data m)) = listSumR (ysSpec data) - listSumR (yHatSpec data m (bOf data m)) := hsum
-    _ = listSumR (ysSpec data) - (m * listSumR (xsSpec data) + (data.length : ℝ) * (bOf data m)) := by simp [hyHat]
-    _ = listSumR (ysSpec data) - (m * listSumR (xsSpec data) + (listSumR (ysSpec data) - m * listSumR (xsSpec data))) := by simp [hbOf]
-    _ = 0 := by ring
+      m * listSumR (data.map (fun xy => xy.1 - xBarSpecR data)) := by
+    simpa using
+      (listSumR_map_mul_const (xs := data) (c := m)
+        (f := fun xy => xy.1 - xBarSpecR data))
+  have hxs0 : listSumR (data.map (fun xy => xy.1 - xBarSpecR data)) = 0 := by
+    simpa [xsSpec] using sum_centered_xs_eq_zero data
+  rw [hys, hxs, hxs0]
+  ring
 
 
 lemma sse_minimized_at_slope_bOf
@@ -855,7 +701,6 @@ lemma sse_minimized_at_slope_bOf
     ≤
   ssResSpec data m (bOf data m) := by
   have hquad := quadratic_min_at_slope data m hvr
-
   have : ssTotSpec data
             - 2 * slopeSpec data * covSpecR data
             + slopeSpec data ^ 2 * vrSpecR data
@@ -864,7 +709,6 @@ lemma sse_minimized_at_slope_bOf
             - 2 * m * covSpecR data
             + m ^ 2 * vrSpecR data := by
     exact hquad
-
   calc
     ssResSpec data (slopeSpec data) (bOf data (slopeSpec data)) =
       ssTotSpec data - 2 * slopeSpec data * covSpecR data + slopeSpec data ^ 2 * vrSpecR data := by
@@ -882,29 +726,26 @@ lemma ssResSpec_shift_intercept
   ssResSpec data m (bOf data m)
     + (data.length : ℝ) * (b - bOf data m) ^ (2 : Nat) := by
   classical
-
   let r : List ℝ := residuals data m (bOf data m)
   let d : ℝ := b - bOf data m
   have hn : (data.length : ℝ) ≠ 0 := by
     exact_mod_cast hlen
-
-  have hshift : residuals data m b = (residuals data m (bOf data m)).map (fun e => e - (b - bOf data m)) := by
-    simpa [d, r] using residuals_shift_intercept (data := data) (m := m) (b := b) (b0 := bOf data m)
-
-  have hsum0 : listSumR r = 0 := by simpa [r] using listSumR_residuals_bOf_eq_zero (data := data) (m := m) hlen
-
+  have hshift :
+      residuals data m b =
+        (residuals data m (bOf data m)).map (fun e => e - (b - bOf data m)) := by
+    simpa [d, r] using
+      residuals_shift_intercept (data := data) (m := m) (b := b) (b0 := bOf data m)
+  have hsum0 : listSumR r = 0 := by
+    simpa [r] using listSumR_residuals_bOf_eq_zero (data := data) (m := m) hlen
   have hrlen : r.length = data.length := by simp [r, residuals, ysSpec, yHatSpec, xsSpec]
-
   have hb :
       ssResSpec data m b = listSumR ((residuals data m b).map (fun e => e * e)) := by
-    simpa using ssResSpec_eq_listSumR_residuals_sq (data := data) (m := m) (b := b)
-
+    simpa using ssResSpec_eq_sum_sq_residuals (data := data) (m := m) (b := b)
   have hbOf :
       ssResSpec data m (bOf data m)
         =
       listSumR (r.map (fun e => e * e)) := by
-    simpa [r] using ssResSpec_eq_listSumR_residuals_sq (data := data) (m := m) (b := bOf data m)
-
+    simpa [r] using ssResSpec_eq_sum_sq_residuals (data := data) (m := m) (b := bOf data m)
   rw [hb, hbOf]
   have hshift' : residuals data m b = r.map (fun e => e - d) := by
     simpa [r, d] using hshift
@@ -915,56 +756,67 @@ lemma ssResSpec_shift_intercept
       (fun e : ℝ => e * e + ((-2 * d) * e + d * d)) := by
     funext e
     ring
-  simp [List.map_map, hsq]
   have hsplit1 :
-      listSumR (r.map (fun e => e * e + ((-2 * d) * e + d * d))) = listSumR (r.map (fun e => e * e)) +
-      listSumR (r.map (fun e => ((-2 * d) * e + d * d))) := by
-    simpa using (listSumR_map_add (xs := r) (f := fun e => e * e) (g := fun e => ((-2 * d) * e + d * d)))
-
+      listSumR (r.map (fun e => e * e + ((-2 * d) * e + d * d))) =
+        listSumR (r.map (fun e => e * e)) +
+          listSumR (r.map (fun e => (-2 * d) * e + d * d)) := by
+    simpa using
+      (listSumR_map_add (xs := r) (f := fun e => e * e)
+        (g := fun e => (-2 * d) * e + d * d))
   have hsplit2 :
-      listSumR (r.map (fun e => ((-2 * d) * e + d * d))) = listSumR (r.map (fun e => (-2 * d) * e)) +
-      listSumR (r.map (fun _ => d * d)) := by
-    simpa using (listSumR_map_add (xs := r) (f := fun e => (-2 * d) * e) (g := fun _ => d * d))
-
+      listSumR (r.map (fun e => (-2 * d) * e + d * d)) =
+        listSumR (r.map (fun e => (-2 * d) * e)) +
+          listSumR (r.map (fun _ => d * d)) := by
+    simpa using
+      (listSumR_map_add (xs := r) (f := fun e => (-2 * d) * e) (g := fun _ => d * d))
   have hmul :
       listSumR (r.map (fun e => (-2 * d) * e)) = (-2 * d) * listSumR r := by
     simpa using (listSumR_map_mul_const (xs := r) (c := (-2 * d)) (f := fun e => e))
-
   have hconst :
       listSumR (r.map (fun _ => d * d)) = (r.length : ℝ) * (d * d) := by
     simpa using (listSumR_map_const (xs := r) (c := d * d))
-
   have hcomp :
-      List.map ((fun e ↦ e * e) ∘ fun e ↦ e - d) r = List.map (fun e ↦ (e - d) * (e - d)) r := by
-    ext e; rfl
-
+      List.map ((fun e ↦ e * e) ∘ fun e ↦ e - d) r =
+        List.map (fun e ↦ (e - d) * (e - d)) r := by
+    ext e
+    rfl
   calc
-    listSumR (List.map ((fun e ↦ e * e) ∘ fun e ↦ e - d) r) = listSumR (List.map (fun e ↦ (e - d) * (e - d)) r) := by simpa [hcomp]
-    _ = listSumR (List.map (fun e ↦ e * e + (-2 * d * e + d * d)) r) := by simpa [hsq]
-    _ = listSumR (List.map (fun e ↦ e * e) r) + listSumR (List.map (fun e ↦ -2 * d * e + d * d) r) := by exact hsplit1
-    _ = listSumR (List.map (fun e ↦ e * e) r) + (listSumR (List.map (fun e ↦ -2 * d * e) r) + listSumR (List.map (fun _ ↦ d * d) r)) := by
-      simpa [add_assoc] using congrArg (fun t => listSumR (List.map (fun e ↦ e * e) r) + t) hsplit2
-    _ = listSumR (List.map (fun e ↦ e * e) r) + ((-2 * d) * listSumR r) + ((r.length : ℝ) * (d * d)) := by
-      rw [hmul, hconst]; ring_nf
-    _ = listSumR (List.map (fun e ↦ e * e) r) + ((r.length : ℝ) * (d * d)) := by simp [hsum0, add_assoc, mul_assoc]
-    _ = listSumR (List.map (fun e ↦ e * e) r) + ((data.length : ℝ) * (d * d)) := by simpa [hrlen]
-    _ = listSumR (List.map (fun e ↦ e * e) r) + (data.length : ℝ) * ((b - bOf data m) * (b - bOf data m)) := by simp [d, mul_assoc]
+    listSumR (List.map (fun e => e * e) (List.map (fun e => e - d) r))
+        = listSumR (List.map ((fun e ↦ e * e) ∘ fun e ↦ e - d) r) := by
+          simp [List.map_map]
+    _ = listSumR (List.map (fun e ↦ (e - d) * (e - d)) r) := by
+          simp [hcomp]
+    _ = listSumR (List.map (fun e ↦ e * e + (-2 * d * e + d * d)) r) := by simp [hsq]
+    _ = listSumR (List.map (fun e ↦ e * e) r) +
+          listSumR (List.map (fun e ↦ -2 * d * e + d * d) r) := by
+      exact hsplit1
+    _ = listSumR (List.map (fun e ↦ e * e) r) +
+          (listSumR (List.map (fun e ↦ -2 * d * e) r) +
+            listSumR (List.map (fun _ ↦ d * d) r)) := by
+      simpa [add_assoc] using
+        congrArg (fun t => listSumR (List.map (fun e ↦ e * e) r) + t) hsplit2
+    _ = listSumR (List.map (fun e ↦ e * e) r) +
+          ((-2 * d) * listSumR r) + ((r.length : ℝ) * (d * d)) := by
+      rw [hmul, hconst]
+      ring_nf
+    _ = listSumR (List.map (fun e ↦ e * e) r) + ((r.length : ℝ) * (d * d)) := by
+      simp [hsum0]
+    _ = listSumR (List.map (fun e ↦ e * e) r) + ((data.length : ℝ) * (d * d)) := by
+      simp [hrlen]
+    _ = listSumR (List.map (fun e ↦ e * e) r) +
+          (data.length : ℝ) * ((b - bOf data m) ^ (2 : Nat)) := by
+      simp [d, pow_two]
 
 
 lemma ssResSpec_minimized_at_bOf
   (data : List (ℝ × ℝ)) (m b : ℝ)
   (hlen : data.length ≠ 0) :
   ssResSpec data m (bOf data m) ≤ ssResSpec data m b := by
-  have hshift := ssResSpec_shift_intercept (data := data) (m := m) (b := b) hlen
-  rw [hshift]
+  rw [ssResSpec_shift_intercept (data := data) (m := m) (b := b) hlen]
   have hnonneg :
-      0 ≤ (data.length : ℝ) * ((b - bOf data m) * (b - bOf data m)) := by
-    have hlen_nonneg : 0 ≤ (data.length : ℝ) := by
-      exact Nat.cast_nonneg data.length
-    have hsq_nonneg : 0 ≤ (b - bOf data m) * (b - bOf data m) := by
-      nlinarith
-    exact mul_nonneg hlen_nonneg hsq_nonneg
-  aesop
+      0 ≤ (data.length : ℝ) * (b - bOf data m) ^ (2 : Nat) := by
+    exact mul_nonneg (Nat.cast_nonneg data.length) (by nlinarith [sq_nonneg (b - bOf data m)])
+  linarith
 
 
 lemma ssResSpec_minimized_at_slope_and_bOf
@@ -976,20 +828,17 @@ lemma ssResSpec_minimized_at_slope_and_bOf
   ssResSpec data m b := by
   have hbmin : ssResSpec data m (bOf data m) ≤ ssResSpec data m b := by
     exact ssResSpec_minimized_at_bOf (data := data) (m := m) (b := b) hlen
-
   have hmslope :
       ssResSpec data (slopeSpec data) (bOf data (slopeSpec data))
         ≤
       ssResSpec data m (bOf data m) := by
     exact sse_minimized_at_slope_bOf (data := data) (m := m) hvr
-
   exact le_trans hmslope hbmin
 
 
 lemma interceptSpec_eq_bOf_slopeSpec
   (data : List (ℝ × ℝ)) :
   interceptSpec data = bOf data (slopeSpec data) := by simp [interceptSpec, bOf]
-
 
 --## The main theorem: least squares residual is minimized at slope and intercept
 lemma ssResSpec_minimized_at_slope_and_intercept
@@ -1018,7 +867,7 @@ theorem linearRegression_returns_slope_intercept
   (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
   m = slopeSpec data ∧ b = interceptSpec data := by
   rcases linearRegression_some_fields
-      (α := ℝ) (data := data) (m := m) (b := b) (r2 := r2) h with
+      (data := data) (m := m) (b := b) (r2 := r2) h with
     ⟨_, hm, hb, _⟩
   exact ⟨hm, hb⟩
 
@@ -1055,7 +904,7 @@ theorem linearRegression_certifies_minimizer
     ≤ ssResSpec data m b := by
   rcases linearRegression_returns_slope_intercept (data := data) (m := m) (b := b) (r2 := r2) h with
     ⟨hm, hb⟩
-  simpa [hm, hb]
+  simp [hm, hb]
 
 
 lemma listSumR_map_nonneg {β : Type} (xs : List β) (f : β → ℝ)
@@ -1087,18 +936,15 @@ lemma linearRegression_some_vr_pos
   have hnonneg : 0 ≤ vrSpecR data := vrSpecR_nonneg data
   have hvr_bool : BET.isZero (vrSpecR data) = false :=
     linearRegression_some_vr_notZero (data := data) h
-
   have hvr_ne : vrSpecR data ≠ 0 := by
     intro hzero
     have hiz : BET.isZero (vrSpecR data) = true := by
       simpa [hzero] using (isZero_zero_real)
     rw [hiz] at hvr_bool
     cases hvr_bool
-
   have h0ne : (0 : ℝ) ≠ vrSpecR data := by
     intro hzero
     exact hvr_ne hzero.symm
-
   exact lt_of_le_of_ne hnonneg h0ne
 
 theorem linearRegression_returns_least_minimizer
@@ -1107,19 +953,15 @@ theorem linearRegression_returns_least_minimizer
   ∀ m' b' : ℝ,
     ssResSpec data m b ≤ ssResSpec data m' b' := by
   rcases linearRegression_some_fields
-      (α := ℝ) (data := data) (m := m) (b := b) (r2 := r2) h with
+      (data := data) (m := m) (b := b) (r2 := r2) h with
     ⟨_, hm, hb, _⟩
-
   have hlen2 : 2 ≤ data.length :=
     linearRegression_some_length (α := ℝ) (data := data) h
-
   have hlen : data.length ≠ 0 := by
     have hpos : 0 < data.length := lt_of_lt_of_le (by decide : 0 < 2) hlen2
     exact Nat.ne_of_gt hpos
-
   have hvr : 0 < vrSpecR data :=
     linearRegression_some_vr_pos (data := data) (m := m) (b := b) (r2 := r2) h
-
   intro m' b'
   simpa [hm, hb] using
     (ssResSpec_minimized_at_slope_and_intercept
@@ -1130,7 +972,8 @@ computed on the executable linearized data. -/
 theorem fitWindow_some_regression
   (window : List (Point ℝ)) (range : Nat × Nat) (fit : BETFit ℝ)
   (h : fitWindow (α := ℝ) window range = some fit) :
-  linearRegression (α := ℝ) (linearizeWindow window) = some (fit.slope, fit.intercept, fit.rSquared) := by
+  linearRegression (α := ℝ) (linearizeWindow window) =
+    some (fit.slope, fit.intercept, fit.rSquared) := by
   classical
   unfold fitWindow at h
   cases hreg : linearRegression (α := ℝ) (linearizeWindow window) with
@@ -1140,30 +983,26 @@ theorem fitWindow_some_regression
       rcases triple with ⟨slope, intercept, r2⟩
       cases hzeroNm : BET.isZero (slope + intercept) with
       | true =>
-          simp [hreg, hzeroNm] at h
-          have hzeroNm' : HasIsZero.isZero (slope + intercept) = true := by
+          simp [hreg] at h
+          have hNmFalse : HasIsZero.isZero (slope + intercept) = false := h.1
+          have hNmTrue : HasIsZero.isZero (slope + intercept) = true := by
             simpa [BET.isZero] using hzeroNm
-          cases hzeroNm'.symm.trans h.1
+          rw [hNmTrue] at hNmFalse
+          cases hNmFalse
       | false =>
           cases hzeroInt : BET.isZero intercept with
           | true =>
-              simp [hreg, hzeroNm, hzeroInt] at h
-              have hzeroInt' : HasIsZero.isZero intercept = true := by
+              simp [hreg] at h
+              have hIntFalse : HasIsZero.isZero intercept = false := h.2.1
+              have hIntTrue : HasIsZero.isZero intercept = true := by
                 simpa [BET.isZero] using hzeroInt
-              cases hzeroInt'.symm.trans h.2.1
+              rw [hIntTrue] at hIntFalse
+              cases hIntFalse
           | false =>
-              simp [hreg, hzeroNm, hzeroInt] at h
-              have hfit :
-                  ({ slope := slope
-                   , intercept := intercept
-                   , rSquared := r2
-                   , nm := BETLike.one / (slope + intercept)
-                   , c := slope / intercept + BETLike.one
-                   , range := range
-                   , nPoints := window.length } : BETFit ℝ)
-                    = fit := h.2.2
+              simp [hreg] at h
+              rcases h with ⟨_, _, hfit⟩
               cases hfit
-              simpa using hreg
+              rfl
 
 /-- The least-squares minimizer theorem now connects directly to the executable
 window-fitting pipeline: whenever `fitWindow` succeeds, its returned line minimizes
@@ -1190,7 +1029,6 @@ noncomputable def cFromLine (intercept slope : ℝ) : ℝ := 1 + slope / interce
 -- Optional: monolayer pressure from C (if you use it)
 noncomputable def p_nmFromC (c : ℝ) : ℝ := 1 / (Real.sqrt c + 1)
 
-
 theorem betExtraction_sound
   (data : List (ℝ × ℝ)) (m b r2 : ℝ)
   (h : linearRegression (α := ℝ) data = some (m, b, r2)) :
@@ -1204,8 +1042,8 @@ theorem betExtraction_sound
   rcases hmb with ⟨hm, hb⟩
   constructor
   · -- Nm soundness
-    simpa [hb, hm]
+    simp [hb, hm]
   · -- C soundness
-    simpa [hb, hm]
+    simp [hb, hm]
 
 end BET
