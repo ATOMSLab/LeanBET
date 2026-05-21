@@ -2,9 +2,14 @@
 
 **Formally verified BET surface area analysis in Lean 4.**
 
-LeanBET is a fully executable and formally verified implementation of the Brunauer–Emmett–Teller (BET) surface area analysis pipeline, implemented in the [Lean 4](https://leanprover.github.io/) theorem prover. It covers the complete BETSI-style workflow — window enumeration, monotonicity checks, knee selection, and linear regression — and connects each computational step to a machine-checked mathematical proof.
+LeanBET is a fully executable and formally verified implementation of the Brunauer–Emmett–Teller (BET) surface area analysis pipeline, implemented in the [Lean 4](https://leanprover.github.io/) theorem prover. It covers the complete BETSI-style workflow, such as window enumeration, monotonicity checks, knee selection, and linear regression,  and connects each computational step to a machine-checked mathematical proof.
 
-> Associated manuscript: *LeanBET: Formally-verified surface area calculations in Lean* — Ugwuanyi, Jones, Velkey, and Josephson (2026).
+## Preprint
+
+📄 *LeanBET: Formally-verified surface area calculations in Lean*  
+Ugwuanyi, Jones, Velkey, and Josephson (2026)
+
+https://arxiv.org/abs/2605.16169
 
 ---
 
