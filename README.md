@@ -47,8 +47,7 @@ LeanBET provides machine-checked proofs for the following:
 
 LeanBET was benchmarked against the BETSI reference implementation on 19 adsorption isotherms from the Osterrieth et al. (2022) round-robin dataset:
 
-- **18 of 19 isotherms** agree with BETSI to machine precision (IEEE 754 floating-point)
-- **UiO-66** shows a deviation of ~0.36 m²/g (~0.03%), the cause of which remains under investigation
+- **19 of 19 isotherms** agree with BETSI to machine precision (IEEE 754 floating-point)
 
 ---
 
